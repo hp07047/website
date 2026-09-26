@@ -1,0 +1,69 @@
+{
+  "county": "Hudson",
+  "rail": {
+    "note": "NJ Transit commuter rail stations physically in Hudson County. Codes are NJ Transit STATION_2CHAR values used by the TrainData API.",
+    "stations": [
+      { "code": "HB", "name": "Hoboken Terminal", "town": "Hoboken", "lines": ["Main/Bergen", "Pascack Valley", "Morris & Essex", "Montclair-Boonton", "Raritan Valley (select)"] },
+      { "code": "SE", "name": "Secaucus Junction (Upper Level)", "town": "Secaucus", "lines": ["Northeast Corridor", "North Jersey Coast", "Raritan Valley", "Morris & Essex", "Montclair-Boonton"] },
+      { "code": "TS", "name": "Secaucus Junction (Lower Level)", "town": "Secaucus", "lines": ["Main/Bergen", "Pascack Valley", "Port Jervis", "Meadowlands"] }
+    ]
+  },
+  "lightRail": {
+    "note": "Hudson-Bergen Light Rail (HBLR). Every HBLR station is in Hudson County. IDs are our own slugs; map to GTFS stop_id once the static feed is loaded.",
+    "branches": ["Bayonne Flyer", "8th Street – Hoboken", "West Side – Tonnelle", "Hoboken – Tonnelle"],
+    "stations": [
+      { "id": "8th-street", "name": "8th Street", "town": "Bayonne" },
+      { "id": "22nd-street", "name": "22nd Street", "town": "Bayonne" },
+      { "id": "34th-street", "name": "34th Street", "town": "Bayonne" },
+      { "id": "45th-street", "name": "45th Street", "town": "Bayonne" },
+      { "id": "danforth-avenue", "name": "Danforth Avenue", "town": "Jersey City" },
+      { "id": "richard-street", "name": "Richard Street", "town": "Jersey City" },
+      { "id": "liberty-state-park", "name": "Liberty State Park", "town": "Jersey City" },
+      { "id": "jersey-avenue", "name": "Jersey Avenue", "town": "Jersey City" },
+      { "id": "marin-boulevard", "name": "Marin Boulevard", "town": "Jersey City" },
+      { "id": "essex-street", "name": "Essex Street", "town": "Jersey City" },
+      { "id": "exchange-place", "name": "Exchange Place", "town": "Jersey City" },
+      { "id": "harborside", "name": "Harborside", "town": "Jersey City" },
+      { "id": "harsimus-cove", "name": "Harsimus Cove", "town": "Jersey City" },
+      { "id": "newport", "name": "Newport", "town": "Jersey City" },
+      { "id": "west-side-avenue", "name": "West Side Avenue", "town": "Jersey City" },
+      { "id": "mlk-drive", "name": "Martin Luther King Drive", "town": "Jersey City" },
+      { "id": "garfield-avenue", "name": "Garfield Avenue", "town": "Jersey City" },
+      { "id": "hoboken-terminal", "name": "Hoboken Terminal", "town": "Hoboken" },
+      { "id": "2nd-street", "name": "2nd Street", "town": "Hoboken" },
+      { "id": "9th-street-congress", "name": "9th Street – Congress Street", "town": "Hoboken" },
+      { "id": "lincoln-harbor", "name": "Lincoln Harbor", "town": "Weehawken" },
+      { "id": "port-imperial", "name": "Port Imperial", "town": "Weehawken" },
+      { "id": "bergenline-avenue", "name": "Bergenline Avenue", "town": "Union City" },
+      { "id": "tonnelle-avenue", "name": "Tonnelle Avenue", "town": "North Bergen" }
+    ]
+  },
+  "bus": {
+    "note": "Major Hudson County bus hubs. stopId is the NJ Transit 5-digit stop code the BUSDV2 getBusDV endpoint expects. null means it still has to be confirmed against the GTFS stops.txt (stop_code column) once credentials are live.",
+    "hubs": [
+      { "id": "journal-square", "name": "Journal Square Transportation Center", "town": "Jersey City", "stopId": null,
+        "routes": ["1", "2", "6", "10", "80", "82", "83", "84", "85", "86", "87", "88", "119", "123", "125"] },
+      { "id": "hoboken-terminal", "name": "Hoboken Terminal", "town": "Hoboken", "stopId": null,
+        "routes": ["22", "23", "63", "64", "68", "85", "87", "89", "126"] },
+      { "id": "exchange-place", "name": "Exchange Place", "town": "Jersey City", "stopId": null,
+        "routes": ["80", "81", "119"] },
+      { "id": "bergenline-32nd", "name": "Bergenline Ave & 32nd St", "town": "Union City", "stopId": null,
+        "routes": ["22", "84", "86", "88", "89", "154", "156", "159", "165", "166", "168", "181"] },
+      { "id": "bayonne-32nd", "name": "Broadway & 32nd St", "town": "Bayonne", "stopId": null,
+        "routes": ["10", "81", "119", "120"] },
+      { "id": "north-bergen-park-ride", "name": "North Bergen Park & Ride", "town": "North Bergen", "stopId": null,
+        "routes": ["120", "121", "127", "128", "154", "165", "166", "168", "320"] }
+    ],
+    "routeNames": {
+      "1": "Newark – Jersey City", "2": "Journal Square – Secaucus", "6": "Journal Square – Hoboken", "10": "Bayonne – Journal Square",
+      "22": "Hoboken – North Bergen", "23": "Hoboken – Newark", "63": "Hoboken – Journal Square", "64": "Hoboken – Weehawken",
+      "68": "Hoboken – Journal Square", "80": "Exchange Place – Journal Square", "81": "Bayonne – Exchange Place",
+      "82": "Journal Square – Hoboken", "83": "Journal Square – Hoboken", "84": "Journal Square – Bergenline", "85": "Journal Square – Hoboken",
+      "86": "Union City – Journal Square", "87": "Hoboken – Journal Square", "88": "Journal Square – Union City", "89": "Hoboken – Union City",
+      "119": "Bayonne – New York", "120": "Bayonne – New York", "121": "North Bergen – New York", "123": "Jersey City – New York",
+      "125": "Jersey City – New York", "126": "Hoboken – New York", "127": "North Bergen – New York", "128": "North Bergen – New York",
+      "154": "Fort Lee – New York", "156": "Fort Lee – New York", "159": "Fort Lee – New York", "165": "Westwood – New York",
+      "166": "Englewood – New York", "168": "Paramus – New York", "181": "Guttenberg – New York", "320": "Meadowlands – New York"
+    }
+  }
+}

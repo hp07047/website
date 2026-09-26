@@ -1,0 +1,13 @@
+{
+  "name": "hudpost-transit",
+  "version": "0.1.0",
+  "description": "HudPost Hudson County transit page (MVP) backed by the NJ Transit developer API",
+  "type": "module",
+  "private": true,
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "start": "node server.js",
+    "dev": "NJT_MOCK=1 node server.js",
+    "test": "node --test"
+  }
+}

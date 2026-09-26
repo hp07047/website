@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Hudson County Transit — HudPost</title>
+  <meta name="description" content="Live NJ Transit rail, light rail and bus departures for Hudson County: Hoboken, Secaucus, Journal Square, Exchange Place, Bergenline and more.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header class="masthead">
+    <div class="wrap masthead__row">
+      <a class="brand" href="https://hudpost.com/" aria-label="HudPost home">Hud<span>Post</span></a>
+      <nav class="nav" aria-label="Site">
+        <a href="https://hudpost.com/">News</a>
+        <a href="https://hudpost.com/hudson-county/">Hudson County</a>
+        <a href="https://hudpost.com/jobs">Jobs</a>
+        <a href="/" aria-current="page">Transit</a>
+      </nav>
+    </div>
+  </header>
+
+  <section class="hero">
+    <div class="wrap">
+      <p class="kicker">Hudson County</p>
+      <h1>Transit, right now.</h1>
+      <p class="lede">Live NJ Transit departures for the stations and bus hubs Hudson County actually uses. Refreshes every 30 seconds.</p>
+      <div class="status" id="status" role="status">
+        <span class="dot" aria-hidden="true"></span>
+        <span id="status-text">Connecting…</span>
+        <span class="status__meta" id="status-meta"></span>
+      </div>
+    </div>
+  </section>
+
+  <main class="wrap">
+    <div id="alerts" class="alerts" hidden></div>
+
+    <div class="tabs" role="tablist" aria-label="Transit mode">
+      <button class="tab is-active" role="tab" aria-selected="true" data-tab="rail">Rail</button>
+      <button class="tab" role="tab" aria-selected="false" data-tab="lightrail">Light Rail</button>
+      <button class="tab" role="tab" aria-selected="false" data-tab="bus">Bus</button>
+    </div>
+
+    <section class="panel" id="panel-rail" role="tabpanel">
+      <div class="panel__head">
+        <h2>Commuter rail</h2>
+        <div class="picker" id="rail-picker" role="group" aria-label="Station"></div>
+      </div>
+      <div class="board" id="rail-board" aria-live="polite"></div>
+    </section>
+
+    <section class="panel" id="panel-lightrail" role="tabpanel" hidden>
+      <div class="panel__head">
+        <h2>Hudson-Bergen Light Rail</h2>
+        <label class="select">
+          <span>Station</span>
+          <select id="lr-select"></select>
+        </label>
+      </div>
+      <div class="board" id="lr-board" aria-live="polite"></div>
+    </section>
+
+    <section class="panel" id="panel-bus" role="tabpanel" hidden>
+      <div class="panel__head">
+        <h2>Bus</h2>
+        <label class="select">
+          <span>Hub</span>
+          <select id="bus-select"></select>
+        </label>
+      </div>
+      <div class="chips" id="bus-routes" aria-label="Routes serving this hub"></div>
+      <div class="board" id="bus-board" aria-live="polite"></div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="wrap">
+      <p><strong>HudPost</strong> · Local Hudson County news &amp; politics. Departure data provided by NJ TRANSIT and is subject to change; always confirm at the station.</p>
+      <p class="footer__small">Not affiliated with or endorsed by NJ TRANSIT.</p>
+    </div>
+  </footer>
+
+  <template id="tpl-empty"><div class="empty">No departures in the next hour.</div></template>
+  <script src="/app.js" type="module"></script>
+</body>
+</html>
