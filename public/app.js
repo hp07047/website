@@ -1,159 +1,233 @@
-const REFRESH_MS = 30_000;
-const state = { meta: null, tab: 'rail', rail: 'HB', lr: 'hoboken-terminal', bus: 'journal-square', timer: null };
+/* Hudson County Transit — front end.
+   Design rules (from rider complaints about the official apps):
+   1. Zero clicks to the answer: starred stops render on load with the next departures.
+   2. Delays and tracks are always inline. A boarding train never loses its time.
+   3. "Nearby" sorts by distance, never alphabetically.
+   4. Every card says how old its data is; stale data is flagged, never silently shown as fresh.
+   5. Scheduled (non-live) rows are labeled as such. */
+
+const REFRESH_MS = 30_000, TICK_MS = 5_000, STALE_MS = 90_000;
+const MODE_LABEL = { rail: 'Rail', lightrail: 'Light Rail', bus: 'Bus', ferry: 'Ferry' };
 const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const fmt = (iso) => new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+const mins = (iso) => Math.round((new Date(iso) - Date.now()) / 60000);
+const isIso = (v) => typeof v === 'string' && v.includes('T');
 
-try {
-  const saved = JSON.parse(localStorage.getItem('hudpost-transit') || '{}');
-  Object.assign(state, { tab: saved.tab || state.tab, rail: saved.rail || state.rail, lr: saved.lr || state.lr, bus: saved.bus || state.bus });
-} catch { /* storage unavailable */ }
-function persist() { try { localStorage.setItem('hudpost-transit', JSON.stringify({ tab: state.tab, rail: state.rail, lr: state.lr, bus: state.bus })); } catch { /* ignore */ } }
+const state = {
+  meta: null, favorites: [], mode: 'rail', area: 'hoboken', open: null, query: '', loc: null,
+  boards: new Map(), // key -> { data, fetchedAt, error, inflight }
+};
+try { Object.assign(state, JSON.parse(localStorage.getItem('hct') || '{}')); } catch { /* no storage */ }
+function persist() { try { localStorage.setItem('hct', JSON.stringify({ favorites: state.favorites, mode: state.mode, area: state.area, loc: state.loc })); } catch { /* ignore */ } }
 
+/* ---------- data ---------- */
+const keyOf = (mode, id) => `${mode}:${id}`;
+function urlFor(mode, id) {
+  return { rail: `/api/rail/departures?station=${id}`, lightrail: `/api/lightrail/departures?station=${id}`,
+    bus: `/api/bus/departures?hub=${id}`, ferry: `/api/ferry/departures?terminal=${id}`, nyc: `/api/nyc?area=${id}` }[mode];
+}
 async function api(path) {
   const res = await fetch(path, { cache: 'no-store' });
   const json = await res.json().catch(() => ({ ok: false, error: `HTTP ${res.status}` }));
   if (!json.ok) throw new Error(json.error || `HTTP ${res.status}`);
   return json.data;
 }
-
-const fmtTime = (iso) => new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-function minsUntil(iso) { return Math.round((new Date(iso) - Date.now()) / 60000); }
-function esc(s) { return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
-function statusClass(status, delay) {
-  const s = String(status || '').toUpperCase();
-  if (delay > 0 || /DELAY|LATE/.test(s)) return 'bad';
-  if (/BOARD|ABOARD|STAND|APPROACH/.test(s)) return 'warn';
-  return 'ok';
+async function load(mode, id, { force = false } = {}) {
+  const key = keyOf(mode, id);
+  const b = state.boards.get(key) || {};
+  if (b.inflight) return b.inflight;
+  if (!force && b.fetchedAt && Date.now() - b.fetchedAt < 15_000) return b;
+  b.inflight = api(urlFor(mode, id)).then((data) => { b.data = data; b.fetchedAt = Date.now(); b.error = null; })
+    .catch((err) => { b.error = err.message; }) // keep last-good data
+    .finally(() => { b.inflight = null; state.boards.set(key, b); render(); });
+  state.boards.set(key, b);
+  return b.inflight;
 }
 
-function setStatus(kind, text, meta = '') {
-  const el = $('status');
-  el.className = `status is-${kind}`;
-  $('status-text').textContent = text;
-  $('status-meta').textContent = meta;
+function stopsOf(mode) {
+  const m = state.meta;
+  return { rail: m.rail.map((s) => ({ ...s, id: s.code })), lightrail: m.lightRail, bus: m.bus.hubs, ferry: m.ferry.map((t) => ({ ...t })) }[mode];
 }
+function stopName(mode, id) { return stopsOf(mode).find((s) => s.id === id)?.name || id; }
+const isFav = (mode, id) => state.favorites.some((f) => f.mode === mode && f.id === id);
+function toggleFav(mode, id) {
+  state.favorites = isFav(mode, id) ? state.favorites.filter((f) => !(f.mode === mode && f.id === id)) : [...state.favorites, { mode, id }];
+  persist(); refreshAll();
+}
+function distKm(a, b) {
+  const r = Math.PI / 180, dLat = (b.lat - a.lat) * r, dLon = (b.lon - a.lon) * r;
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * r) * Math.cos(b.lat * r) * Math.sin(dLon / 2) ** 2;
+  return 6371 * 2 * Math.asin(Math.sqrt(h));
+}
+const fmtDist = (km) => (km < 0.16 ? `${Math.round(km * 3281)} ft` : `${(km * 0.621).toFixed(1)} mi`);
 
-/* ---------- Rail ---------- */
-function renderRailPicker() {
-  $('rail-picker').innerHTML = state.meta.rail.map((s) =>
-    `<button type="button" data-code="${s.code}" class="${s.code === state.rail ? 'is-active' : ''}">${esc(s.name.replace(' Junction', ''))}</button>`).join('');
-  $('rail-picker').onclick = (e) => {
-    const b = e.target.closest('button'); if (!b) return;
-    state.rail = b.dataset.code; persist(); renderRailPicker(); loadRail();
-  };
-}
-async function loadRail() {
-  const board = $('rail-board');
-  board.innerHTML = '<div class="loading">Loading departures…</div>';
-  try {
-    const [data, msgs] = await Promise.all([api(`/api/rail/departures?station=${state.rail}`), api(`/api/rail/messages?station=${state.rail}`).catch(() => [])]);
-    renderAlerts(msgs);
-    const rows = data.departures.filter((d) => d.scheduled && minsUntil(d.scheduled) > -2).slice(0, 12);
-    board.innerHTML = rows.length ? rows.map((d) => {
-      const m = minsUntil(d.scheduled);
-      const cls = statusClass(d.status, d.delayMin);
-      return `<div class="row">
-        <div class="row__time">${m <= 0 ? 'Now' : m + '<small>min</small>'}<small>${fmtTime(d.scheduled)}</small></div>
-        <div class="row__main">
-          <div class="row__dest">${esc(d.destination)} <span class="line" style="background:${esc(d.colors.bg || '#888')};color:${esc(d.colors.fg || '#fff')}">${esc(d.lineAbbr || d.line || '')}</span></div>
-          <div class="row__sub">${esc(d.line || '')}${d.trainId ? ` · Train ${esc(d.trainId)}` : ''}${d.inlineMessage ? ` · ${esc(d.inlineMessage)}` : ''}</div>
-        </div>
-        <div class="row__right">
-          <span class="badge ${cls}">${esc(d.delayMin > 0 ? `${d.delayMin} min late` : d.status || 'Scheduled')}</span>
-          <span class="track">${d.track ? `Track ${esc(d.track)}` : 'Track TBA'}</span>
-        </div>
-      </div>`;
-    }).join('') : $('tpl-empty').innerHTML;
-  } catch (err) {
-    board.innerHTML = `<div class="error">Couldn't load rail departures (${esc(err.message)}).</div>`;
+/* ---------- normalize any mode's departure into one row shape ---------- */
+function toRow(mode, d) {
+  if (mode === 'bus') {
+    const eta = String(d.eta || '');
+    const m = eta.match(/(\d+)\s*MIN/i);
+    return { badge: eta || 'Scheduled', cls: /DELAY/i.test(eta) ? 'bad' : /APPROACH|^[0-3]\s*MIN/i.test(eta) ? 'warn' : eta ? 'ok' : 'sched',
+      etaMin: /APPROACH/i.test(eta) ? 0 : m ? Number(m[1]) : null, scheduledText: isIso(d.scheduled) ? fmt(d.scheduled) : d.scheduled, dest: d.headsign, tag: `<span class="route">${esc(d.route)}</span>`,
+      sub: [state.meta.bus.routeNames[d.route], d.lane ? `Lane ${d.lane}` : null, d.passengerLoad ? `${d.passengerLoad.toLowerCase()} load` : null, d.from].filter(Boolean).join(' · '),
+      right2: d.lane ? `Lane ${d.lane}` : '', live: !!eta };
   }
+  const delay = d.delayMin || 0;
+  const status = String(d.status || '').toUpperCase();
+  const live = d.source !== 'schedule' && d.source !== 'mock' ? true : d.source === 'mock';
+  let cls = 'ok', badge = d.status || 'On time';
+  if (delay > 0 || /LATE|DELAY/.test(status)) { cls = 'bad'; badge = delay > 0 ? `${delay} min late` : d.status; }
+  else if (/BOARD|ABOARD|STAND|APPROACH/.test(status)) cls = 'warn';
+  else if (/CANCEL/.test(status)) { cls = 'bad'; badge = 'Cancelled'; }
+  else if (d.source === 'schedule' || status === 'SCHEDULED') { cls = 'sched'; badge = 'Scheduled'; }
+  const est = d.scheduled ? new Date(new Date(d.scheduled).getTime() + delay * 60000).toISOString() : null;
+  const tag = mode === 'rail' && d.lineAbbr ? `<span class="line" style="background:${esc(d.colors?.bg || '#888')};color:${esc(d.colors?.fg || '#fff')}">${esc(d.lineAbbr)}</span>` : '';
+  const sub = [mode === 'rail' ? d.line : mode === 'lightrail' ? d.direction : d.routeName, d.trainId ? `Train ${d.trainId}` : null, d.inlineMessage, d.from].filter(Boolean).join(' · ');
+  const track = mode === 'rail' ? (d.track ? `Track ${d.track}` : 'Track TBA') : '';
+  return { badge, cls, etaMin: est ? mins(est) : null, scheduledIso: d.scheduled, estIso: est, delay, dest: d.destination, tag, sub, right2: track, live: d.source !== 'schedule' };
+}
+function rowHtml(mode, d) {
+  const r = toRow(mode, d);
+  let eta = '—', under = '';
+  if (r.etaMin !== null) eta = r.etaMin <= 0 ? 'Now' : `${r.etaMin}<small>min</small>`;
+  if (r.scheduledIso) under = r.delay > 0 ? `<s>${fmt(r.scheduledIso)}</s> <b>${fmt(r.estIso)}</b>` : fmt(r.scheduledIso);
+  else if (r.scheduledText) under = `Sched ${esc(r.scheduledText)}`;
+  return `<div class="row">
+    <div class="row__eta">${eta}<small>${under}</small></div>
+    <div class="row__main"><div class="row__dest">${r.tag} ${esc(r.dest)}</div><div class="row__sub">${esc(r.sub)}</div></div>
+    <div class="row__right"><span class="badge ${r.cls}">${esc(r.badge)}</span>${r.right2 ? `<span class="track ${/TBA/.test(r.right2) ? 'tba' : ''}">${esc(r.right2)}</span>` : ''}</div>
+  </div>`;
+}
+function rowsHtml(mode, list, limit) {
+  const rows = (list || []).filter((d) => !isIso(d.scheduled) || mins(d.scheduled) > -2).slice(0, limit);
+  return rows.length ? rows.map((d) => rowHtml(mode, d)).join('') : '<div class="empty">Nothing in the next hour.</div>';
+}
+function boardHtml(mode, id, limit = 8) {
+  const b = state.boards.get(keyOf(mode, id));
+  if (!b || (!b.data && !b.error)) return '<div class="loading">Loading…</div>';
+  if (!b.data) return `<div class="error">Couldn't load (${esc(b.error)}).</div>`;
+  const msg = b.data.message ? `<div class="note">${esc(b.data.message)}</div>` : '';
+  return rowsHtml(mode, b.data.departures, limit) + msg;
+}
+function ageText(b) {
+  if (!b?.fetchedAt) return '';
+  const s = Math.round((Date.now() - b.fetchedAt) / 1000);
+  const stale = Date.now() - b.fetchedAt > STALE_MS || b.error;
+  return `<span class="${stale ? 'stale' : ''}">${stale ? 'Stale · ' : ''}updated ${s < 5 ? 'just now' : s < 60 ? `${s}s ago` : `${Math.round(s / 60)} min ago`}${b.error ? ' · refresh failed' : ''}</span>`;
 }
 
-/* ---------- Light rail ---------- */
-function renderLrSelect() {
-  $('lr-select').innerHTML = state.meta.lightRail.map((s) => `<option value="${s.id}" ${s.id === state.lr ? 'selected' : ''}>${esc(s.name)} — ${esc(s.town)}</option>`).join('');
-  $('lr-select').onchange = (e) => { state.lr = e.target.value; persist(); loadLr(); };
+/* ---------- render ---------- */
+function render() { renderFresh(); renderFavs(); renderNyc(); renderAll(); }
+
+function renderFresh() {
+  const modes = state.meta.modes;
+  const live = Object.values(modes).includes('live');
+  const boards = [...state.boards.values()].filter((b) => b.fetchedAt);
+  const newest = boards.length ? Math.max(...boards.map((b) => b.fetchedAt)) : null;
+  const anyStale = boards.some((b) => b.error || Date.now() - b.fetchedAt > STALE_MS);
+  const el = $('fresh');
+  el.className = `fresh ${anyStale ? 'is-stale' : live ? 'is-live' : 'is-mock'}`;
+  $('fresh-text').textContent = (live ? 'Live' : 'Demo data') + (newest ? ` · ${Math.max(0, Math.round((Date.now() - newest) / 1000))}s ago` : '');
 }
-async function loadLr() {
-  const board = $('lr-board');
-  board.innerHTML = '<div class="loading">Loading departures…</div>';
-  try {
-    const data = await api(`/api/lightrail/departures?station=${state.lr}`);
-    const rows = data.departures.filter((d) => minsUntil(d.scheduled) > -1).slice(0, 10);
-    board.innerHTML = (rows.length ? rows.map((d) => {
-      const m = minsUntil(d.scheduled);
-      return `<div class="row">
-        <div class="row__time">${m <= 0 ? 'Now' : m + '<small>min</small>'}<small>${fmtTime(d.scheduled)}</small></div>
-        <div class="row__main"><div class="row__dest">${esc(d.destination)}</div><div class="row__sub">${esc(d.direction)}</div></div>
-        <div class="row__right"><span class="badge ${statusClass(d.status, 0)}">${esc(d.status)}</span></div>
-      </div>`;
-    }).join('') : $('tpl-empty').innerHTML)
-      + `<div class="note">Light rail times are ${data.departures[0]?.source === 'schedule' ? 'scheduled, not live' : 'live'}. NJ Transit's developer portal doesn't expose a documented real-time HBLR feed yet.</div>`;
-  } catch (err) {
-    board.innerHTML = `<div class="error">Couldn't load light rail departures (${esc(err.message)}).</div>`;
+
+function renderFavs() {
+  const el = $('fav-cards');
+  if (!state.favorites.length) {
+    const defaults = [['rail', 'HB'], ['bus', 'journal-square'], ['lightrail', 'newport'], ['ferry', 'hoboken-njt']];
+    el.innerHTML = `<div class="empty-fav">Star any stop below and it'll be waiting here every time you open the page. Or start with:
+      <div class="chips">${defaults.map(([m, id]) => `<button class="chip" data-fav="${m}:${id}">☆ ${esc(stopName(m, id))}</button>`).join('')}</div></div>`;
+    return;
   }
+  el.innerHTML = state.favorites.map(({ mode, id }) => {
+    const b = state.boards.get(keyOf(mode, id));
+    const stale = b?.fetchedAt && (b.error || Date.now() - b.fetchedAt > STALE_MS);
+    return `<article class="card ${stale ? 'is-stale' : ''}">
+      <div class="card__head"><span class="mode ${mode}">${MODE_LABEL[mode]}</span><span class="card__name">${esc(stopName(mode, id))}</span>
+        <button class="star is-on" data-fav="${mode}:${id}" aria-label="Remove from your stops">★</button></div>
+      ${boardHtml(mode, id, 4)}
+      <div class="card__foot">${ageText(b)}<span>${b?.data?.departures?.[0]?.source === 'schedule' ? 'timetable' : ''}</span></div>
+    </article>`;
+  }).join('');
 }
 
-/* ---------- Bus ---------- */
-function renderBusSelect() {
-  $('bus-select').innerHTML = state.meta.bus.hubs.map((h) => `<option value="${h.id}" ${h.id === state.bus ? 'selected' : ''}>${esc(h.name)} — ${esc(h.town)}</option>`).join('');
-  $('bus-select').onchange = (e) => { state.bus = e.target.value; persist(); loadBus(); };
-}
-async function loadBus() {
-  const board = $('bus-board');
-  const hub = state.meta.bus.hubs.find((h) => h.id === state.bus);
-  $('bus-routes').innerHTML = hub.routes.map((r) => `<span class="chip" title="${esc(state.meta.bus.routeNames[r] || '')}">${esc(r)}</span>`).join('');
-  board.innerHTML = '<div class="loading">Loading departures…</div>';
-  try {
-    const data = await api(`/api/bus/departures?hub=${state.bus}`);
-    board.innerHTML = (data.departures.length ? data.departures.map((d) => {
-      const eta = String(d.eta || '');
-      const cls = /DELAY/i.test(eta) ? 'bad' : /APPROACH|^[0-3] MIN/i.test(eta) ? 'warn' : 'ok';
-      return `<div class="row">
-        <div class="row__time"><span class="route">${esc(d.route)}</span></div>
-        <div class="row__main">
-          <div class="row__dest">${esc(d.headsign)}</div>
-          <div class="row__sub">${esc(state.meta.bus.routeNames[d.route] || '')}${d.lane ? ` · Lane ${esc(d.lane)}` : ''}${d.passengerLoad ? ` · ${esc(d.passengerLoad.toLowerCase())} load` : ''}</div>
-        </div>
-        <div class="row__right"><span class="badge ${cls}">${esc(eta)}</span><span class="track">Sched ${esc(d.scheduled || '')}</span></div>
-      </div>`;
-    }).join('') : $('tpl-empty').innerHTML)
-      + (data.message ? `<div class="note">${esc(data.message)}</div>` : '');
-  } catch (err) {
-    board.innerHTML = `<div class="error">Couldn't load bus departures (${esc(err.message)}).</div>`;
-  }
+function renderNyc() {
+  $('nyc-areas').innerHTML = state.meta.nyc.map((a) => `<button class="chip ${a.id === state.area ? 'is-active' : ''}" data-area="${a.id}">${esc(a.name)}</button>`).join('');
+  const b = state.boards.get(keyOf('nyc', state.area));
+  const el = $('nyc-board');
+  if (!b || (!b.data && !b.error)) { el.innerHTML = '<div class="loading">Loading…</div>'; return; }
+  if (!b.data) { el.innerHTML = `<div class="error">Couldn't load (${esc(b.error)}).</div>`; return; }
+  const rows = b.data.departures.filter((d) => !isIso(d.scheduled) || mins(d.scheduled) > -2).slice(0, 8);
+  el.innerHTML = (rows.length ? rows.map((d) => rowHtml(d.mode, { ...d, from: d.from })).join('') : '<div class="empty">No NYC-bound departures found in the next hour.</div>')
+    + `<div class="note">${ageText(b)}${b.data.failedSources ? ` · ${b.data.failedSources} source(s) didn't answer` : ''}</div>`;
 }
 
-/* ---------- Alerts ---------- */
+function renderAll() {
+  document.querySelectorAll('.tab').forEach((t) => t.classList.toggle('is-active', t.dataset.mode === state.mode));
+  const q = state.query.trim().toLowerCase();
+  const modes = q ? ['rail', 'lightrail', 'bus', 'ferry'] : [state.mode];
+  let items = modes.flatMap((mode) => stopsOf(mode).map((s) => ({ mode, s })));
+  if (q) items = items.filter(({ s }) => `${s.name} ${s.town} ${(s.routes || []).join(' ')} ${(s.lines || []).join(' ')}`.toLowerCase().includes(q));
+  if (state.loc) items.forEach((it) => { it.km = distKm(state.loc, it.s); });
+  items.sort((a, b) => (state.loc ? a.km - b.km : a.s.name.localeCompare(b.s.name)));
+  $('all-hint').textContent = state.loc ? 'Sorted by distance from you.' : 'Alphabetical. Tap Nearby to sort by distance.';
+  $('nearby-btn').classList.toggle('is-active', !!state.loc);
+  $('stoplist').innerHTML = items.length ? items.map(({ mode, s, km }) => {
+    const open = state.open === keyOf(mode, s.id);
+    return `<div class="stop">
+      <div class="stop__head" data-open="${mode}:${s.id}" role="button" aria-expanded="${open}">
+        <span class="mode ${mode}">${MODE_LABEL[mode]}</span>
+        <span class="stop__name">${esc(s.name)}<small>${esc(s.town)}${s.routes ? ` · ${s.routes.slice(0, 8).join(', ')}${s.routes.length > 8 ? '…' : ''}` : ''}</small></span>
+        ${km !== undefined ? `<span class="stop__dist">${fmtDist(km)}</span>` : ''}
+        <button class="star ${isFav(mode, s.id) ? 'is-on' : ''}" data-fav="${mode}:${s.id}" aria-label="Star">${isFav(mode, s.id) ? '★' : '☆'}</button>
+      </div>
+      ${open ? `<div class="stop__body">${boardHtml(mode, s.id, 8)}<div class="note">${ageText(state.boards.get(keyOf(mode, s.id)))}</div></div>` : ''}
+    </div>`;
+  }).join('') : '<div class="empty">No stops match.</div>';
+}
+
 function renderAlerts(msgs) {
   const el = $('alerts');
-  if (!msgs?.length) { el.hidden = true; el.innerHTML = ''; return; }
-  el.hidden = false;
-  el.innerHTML = msgs.slice(0, 3).map((m) => `<div class="alert">${esc(m.text)}${m.published ? `<time datetime="${m.published}">${fmtTime(m.published)}</time>` : ''}</div>`).join('');
+  el.hidden = !msgs?.length;
+  el.innerHTML = (msgs || []).slice(0, 3).map((m) => `<div class="alert">${esc(m.text)}${m.published ? `<small>${fmt(m.published)}</small>` : ''}</div>`).join('');
 }
 
-/* ---------- Tabs & refresh ---------- */
-function setTab(tab) {
-  state.tab = tab; persist();
-  document.querySelectorAll('.tab').forEach((b) => { const on = b.dataset.tab === tab; b.classList.toggle('is-active', on); b.setAttribute('aria-selected', on); });
-  ['rail', 'lightrail', 'bus'].forEach((t) => { $(`panel-${t}`).hidden = t !== tab; });
-  refresh();
+/* ---------- refresh loop ---------- */
+function refreshAll(force = false) {
+  for (const f of state.favorites) load(f.mode, f.id, { force });
+  load('nyc', state.area, { force });
+  if (state.open) { const [m, id] = state.open.split(':'); load(m, id, { force }); }
+  const railFav = state.favorites.find((f) => f.mode === 'rail');
+  api(`/api/rail/messages?station=${railFav ? railFav.id : 'HB'}`).then(renderAlerts).catch(() => {});
+  render();
 }
-function refresh() {
-  ({ rail: loadRail, lightrail: loadLr, bus: loadBus })[state.tab]();
-  const modes = state.meta.modes;
-  const live = modes.rail === 'live' || modes.bus === 'live';
-  setStatus(live ? 'live' : 'mock', live ? 'Live NJ Transit data' : 'Demo data (no NJ Transit credentials)', `Updated ${new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`);
-}
+
+/* ---------- events ---------- */
+document.addEventListener('click', (e) => {
+  const fav = e.target.closest('[data-fav]');
+  if (fav) { e.stopPropagation(); const [m, id] = fav.dataset.fav.split(':'); toggleFav(m, id); return; }
+  const open = e.target.closest('[data-open]');
+  if (open) { state.open = state.open === open.dataset.open ? null : open.dataset.open; render(); if (state.open) { const [m, id] = state.open.split(':'); load(m, id); } return; }
+  const area = e.target.closest('[data-area]');
+  if (area) { state.area = area.dataset.area; persist(); load('nyc', state.area); render(); return; }
+  const tab = e.target.closest('.tab');
+  if (tab) { state.mode = tab.dataset.mode; state.query = ''; $('search').value = ''; persist(); render(); }
+});
+$('search').addEventListener('input', (e) => { state.query = e.target.value; renderAll(); });
+$('nearby-btn').addEventListener('click', () => {
+  if (state.loc) { state.loc = null; persist(); renderAll(); return; }
+  if (!navigator.geolocation) { alert('Location is not available in this browser.'); return; }
+  $('nearby-btn').textContent = '⌖ Locating…';
+  navigator.geolocation.getCurrentPosition(
+    (p) => { state.loc = { lat: p.coords.latitude, lon: p.coords.longitude }; persist(); $('nearby-btn').textContent = '⌖ Nearby'; renderAll(); },
+    () => { $('nearby-btn').textContent = '⌖ Nearby'; alert('Couldn\'t get your location. Check the browser permission and try again.'); },
+    { maximumAge: 60_000, timeout: 8_000 });
+});
 
 (async function init() {
-  document.querySelector('.tabs').addEventListener('click', (e) => { const b = e.target.closest('.tab'); if (b) setTab(b.dataset.tab); });
-  try {
-    state.meta = await api('/api/meta');
-  } catch (err) {
-    setStatus('error', 'Server unavailable', err.message); return;
-  }
-  renderRailPicker(); renderLrSelect(); renderBusSelect();
-  setTab(state.tab);
-  state.timer = setInterval(refresh, REFRESH_MS);
-  document.addEventListener('visibilitychange', () => { if (!document.hidden) refresh(); });
+  try { state.meta = await api('/api/meta'); }
+  catch (err) { $('fresh').className = 'fresh is-error'; $('fresh-text').textContent = `Server unavailable: ${err.message}`; return; }
+  refreshAll(true);
+  setInterval(() => refreshAll(true), REFRESH_MS);
+  setInterval(render, TICK_MS); // countdowns and "updated Ns ago" tick without refetching
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshAll(true); });
 })();

@@ -7,7 +7,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import hudson from './data/hudson.json' with { type: 'json' };
 import { createRailClient, createBusClient } from './lib/njt.js';
-import { createMockRail, createMockBus, createMockLightRail } from './lib/mock.js';
+import { createMockRail, createMockBus, createMockLightRail, createMockFerry } from './lib/mock.js';
+import { createFerryClient } from './lib/ferry.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 loadDotEnv(path.join(__dirname, '.env'));
@@ -25,6 +26,14 @@ const bus = !FORCE_MOCK && process.env.NJT_BUS_USERNAME && process.env.NJT_BUS_P
 // No public real-time light rail endpoint is documented in any client library we could find;
 // until one is confirmed on the portal, light rail is schedule/mock only.
 const lightRail = createMockLightRail();
+// NY Waterway: schedule from a downloaded GTFS zip when NYWW_GTFS_PATH points at one.
+let ferry;
+try {
+  ferry = !FORCE_MOCK && process.env.NYWW_GTFS_PATH ? createFerryClient({ gtfsPath: process.env.NYWW_GTFS_PATH }) : createMockFerry();
+} catch (err) {
+  console.error(`[ferry] could not load GTFS (${err.message}); using mock`);
+  ferry = createMockFerry();
+}
 
 const cache = new Map();
 async function cached(key, fn) {
@@ -40,7 +49,10 @@ const MIME = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=u
 const routes = {
   '/api/meta': async () => ({
     county: hudson.county,
-    modes: { rail: rail.mode, bus: bus.mode, lightRail: lightRail.mode },
+    modes: { rail: rail.mode, bus: bus.mode, lightRail: lightRail.mode, ferry: ferry.mode },
+    notes: hudson.notes,
+    ferry: hudson.ferry.terminals,
+    nyc: hudson.nyc.areas,
     cacheSeconds: TTL_MS / 1000,
     rail: hudson.rail.stations,
     lightRail: hudson.lightRail.stations,
@@ -59,6 +71,34 @@ const routes = {
     const station = q.get('station') || 'hoboken-terminal';
     if (!hudson.lightRail.stations.some((s) => s.id === station)) throw httpError(400, 'unknown HBLR station');
     return cached(`lr:${station}`, () => lightRail.departures(station));
+  },
+  '/api/ferry/departures': async (q) => {
+    const terminal = q.get('terminal') || 'hoboken-njt';
+    if (!hudson.ferry.terminals.some((t) => t.id === terminal)) throw httpError(400, 'unknown ferry terminal');
+    return cached(`ferry:${terminal}`, () => ferry.departures(terminal));
+  },
+  // Cross-mode "To Manhattan" board for one area: every NYC-bound departure, soonest first.
+  '/api/nyc': async (q) => {
+    const area = hudson.nyc.areas.find((a) => a.id === q.get('area'));
+    if (!area) throw httpError(400, 'unknown area');
+    return cached(`nyc:${area.id}`, async () => {
+      const jobs = [];
+      for (const code of area.rail) jobs.push(rail.departures(code).then((d) => d.departures
+        .filter((x) => /NEW YORK|NY PENN/i.test(x.destination || '')).map((x) => ({ ...x, mode: 'rail', from: d.stationName, fromId: code, eta: null }))));
+      for (const id of area.bus) {
+        const hub = hudson.bus.hubs.find((h) => h.id === id);
+        if (bus.mode === 'live' && !hub.stopId) continue;
+        jobs.push(bus.departures(hub.stopId || hub.id).then((d) => d.departures
+          .filter((x) => /NEW YORK|PORT AUTH|MIDTOWN|NYC/i.test(`${x.headsign} ${hudson.bus.routeNames[x.route] || ''}`))
+          .map((x) => ({ ...x, mode: 'bus', from: hub.name, fromId: id, destination: x.headsign, scheduled: busSchedToIso(x.scheduled) }))));
+      }
+      for (const id of area.ferry) jobs.push(ferry.departures(id).then((d) => d.departures.map((x) => ({ ...x, mode: 'ferry', from: d.terminalName, fromId: id }))));
+      const settled = await Promise.allSettled(jobs);
+      const rows = settled.flatMap((r) => (r.status === 'fulfilled' ? r.value : []));
+      const failed = settled.filter((r) => r.status === 'rejected').length;
+      rows.sort((a, b) => String(a.scheduled || '9').localeCompare(String(b.scheduled || '9')));
+      return { area: area.id, areaName: area.name, failedSources: failed, departures: rows.slice(0, 20) };
+    });
   },
   '/api/bus/departures': async (q) => {
     const hubId = q.get('hub');
@@ -90,6 +130,15 @@ server.listen(PORT, () => {
   console.log(`HudPost transit MVP on http://localhost:${PORT}  (rail=${rail.mode}, bus=${bus.mode}, lightRail=${lightRail.mode})`);
 });
 
+/** BUSDV2 gives "04:55 PM" with no date; anchor it to today (or tomorrow if it already passed by >6h). */
+function busSchedToIso(t) {
+  const m = String(t || '').match(/^(\d{1,2}):(\d{2})\s*([AP]M)$/i);
+  if (!m) return null;
+  let h = Number(m[1]) % 12; if (m[3].toUpperCase() === 'PM') h += 12;
+  const d = new Date(); d.setHours(h, Number(m[2]), 0, 0);
+  if (d.getTime() < Date.now() - 6 * 3600 * 1000) d.setDate(d.getDate() + 1);
+  return d.toISOString();
+}
 function wrap(data) { return Array.isArray(data) ? { data } : { data }; }
 function httpError(status, message) { const e = new Error(message); e.status = status; return e; }
 function send(res, status, body, type) {
