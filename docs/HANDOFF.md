@@ -1,6 +1,6 @@
-# Hudson County Transit — source handoff
+# Hudson County Transit — source
 
-Repo `hp07047/website`, branch `claude/nj-transit-hudson-county-mvp-f2tfpp`, commit `f656586`. Every file in the repo follows, byte for byte, one fenced block each. Recreate the tree with these paths and run `npm run dev` (Node 20+, no npm dependencies).
+Repo `hp07047/website`, branch `claude/nj-transit-hudson-county-mvp-f2tfpp`. Every file in the repo follows, byte for byte, one fenced block each. Recreate the tree with these paths and run `npm run dev` (Node 20+, no npm dependencies).
 
 Files:
 
@@ -758,7 +758,7 @@ export function parseCsv(text) {
   }
   if (field || row.length) { row.push(field); rows.push(row); }
   const [head, ...body] = rows.filter((r) => r.length > 1 || r[0]);
-  const keys = head.map((k) => k.replace(/^﻿/, '').trim());
+  const keys = head.map((k) => k.replace(/^\uFEFF/, '').trim());
   return body.map((r) => Object.fromEntries(keys.map((k, i) => [k, r[i] ?? ''])));
 }
 
