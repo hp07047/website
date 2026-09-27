@@ -67,10 +67,15 @@ docs/njt-api.md    What the API exposes, field names, limits, open questions
 | `GET /api/shuttles?system=hop` | live shuttle count per route |
 | `GET /api/roads` · `GET /api/weather` | crossings strip, conditions hint |
 
-## Brand
+## Brand and color
 
 hudpost.com was not reachable from the build environment, so `public/styles.css` opens with placeholder
 brand tokens (`--brand`, `--ink`, fonts). Swap them to the live site's values and the rest follows.
+
+Color rule, after reader feedback that too many colors were confusing: **grey scale for everything,
+`--brand` only when something needs attention** (late, cancelled, stale, incident, alert) **or is
+selected**. Modes are outlined text pills, not colored blocks. Official NJ Transit and PATH line colors
+survive only as a 7px dot beside the line name so riders can match station signage.
 
 ## Next steps
 

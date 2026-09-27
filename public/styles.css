@@ -1,9 +1,11 @@
-/* Brand tokens. hudpost.com wasn't reachable from the build environment; swap --brand/--ink to match. */
+/* Palette rule: grey scale for everything, --brand only when something needs attention
+   (late, cancelled, stale, incident, alert) or is selected. Official NJ Transit / PATH line
+   colors appear only as a 6px dot so riders can match station signage. No other hues.
+   --brand is a placeholder until hudpost.com's real value is supplied. */
 :root {
   --brand: #c8102e; --ink: #111214; --ink-2: #4a4d55; --ink-3: #8a8e98;
   --paper: #ffffff; --paper-2: #f5f5f3; --line: #e4e4e0;
-  --ok: #1a7f4b; --warn: #b7791f; --bad: #c8102e; --info: #2457c5;
-  --rail: #1d4ed8; --lightrail: #0d9488; --bus: #7c3aed; --ferry: #0369a1; --path: #b45309; --bikes: #0f766e; --shuttles: #be185d;
+  --bad: var(--brand);
   --sans: Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --radius: 12px;
 }
@@ -24,13 +26,13 @@ button { font: inherit; }
 .topbar__title { font-weight: 800; letter-spacing: -0.01em; flex: 1; white-space: nowrap; }
 .fresh { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 600; color: var(--ink-2); white-space: nowrap; }
 .fresh .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--ink-3); }
-.fresh.is-live .dot { background: var(--ok); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ok) 20%, transparent); }
-.fresh.is-mock .dot { background: var(--warn); }
+.fresh.is-live .dot { background: var(--ink); }
+.fresh.is-mock .dot { background: transparent; border: 2px solid var(--ink-3); }
 .fresh.is-stale .dot, .fresh.is-error .dot { background: var(--bad); }
 .btn { appearance: none; border: 1px solid var(--line); background: var(--paper); color: var(--ink); border-radius: 999px; padding: 6px 12px; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; }
 .btn.is-active { background: var(--ink); color: var(--paper); border-color: var(--ink); }
 .search { width: 100%; font: inherit; padding: 10px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--paper-2); color: var(--ink); }
-.search:focus { outline: 2px solid var(--brand); outline-offset: 0; }
+.search:focus { outline: 2px solid var(--ink); outline-offset: 0; }
 
 /* Sections */
 .sec { margin-top: 26px; }
@@ -53,11 +55,9 @@ button { font: inherit; }
 .empty-fav .chips { margin-top: 10px; }
 
 /* Mode pill & star */
-.mode { display: inline-block; font-size: 10px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: #fff; padding: 2px 6px; border-radius: 4px; }
-.mode.rail { background: var(--rail); } .mode.lightrail { background: var(--lightrail); } .mode.bus { background: var(--bus); } .mode.ferry { background: var(--ferry); }
-.mode.path { background: var(--path); } .mode.bikes { background: var(--bikes); } .mode.shuttles { background: var(--shuttles); }
+.mode { display: inline-block; font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-2); border: 1px solid var(--line); padding: 1px 6px; border-radius: 4px; white-space: nowrap; }
 .star { appearance: none; border: 0; background: none; cursor: pointer; font-size: 20px; line-height: 1; color: var(--ink-3); padding: 2px 4px; }
-.star.is-on { color: var(--warn); }
+.star.is-on { color: var(--ink); }
 
 /* Departure rows */
 .board { border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; background: var(--paper); }
@@ -70,11 +70,12 @@ button { font: inherit; }
 .row__main { min-width: 0; }
 .row__dest { font-weight: 600; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .row__sub { color: var(--ink-2); font-size: 12px; margin-top: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.line { font-size: 10px; font-weight: 800; padding: 2px 6px; border-radius: 4px; letter-spacing: .04em; }
+.line { font-size: 11px; font-weight: 700; color: var(--ink-2); letter-spacing: .04em; display: inline-flex; align-items: center; gap: 4px; }
+.line .dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; border: 1px solid rgba(0,0,0,.15); }
 .route { display: inline-grid; place-items: center; min-width: 40px; height: 26px; padding: 0 7px; border-radius: 6px; background: var(--ink); color: var(--paper); font-weight: 800; font-size: 13px; }
 .row__right { text-align: right; display: grid; gap: 2px; }
 .badge { font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .03em; }
-.badge.ok { color: var(--ok); } .badge.warn { color: var(--warn); } .badge.bad { color: var(--bad); } .badge.sched { color: var(--ink-3); font-weight: 600; }
+.badge.ok { color: var(--ink-2); } .badge.warn { color: var(--ink); } .badge.bad { color: var(--bad); } .badge.sched { color: var(--ink-3); font-weight: 600; }
 .track { font-size: 12px; color: var(--ink-2); font-weight: 600; }
 .track.tba { color: var(--ink-3); font-weight: 400; }
 .empty, .loading, .error { padding: 22px 12px; text-align: center; color: var(--ink-3); font-size: 14px; }
@@ -109,7 +110,7 @@ button { font: inherit; }
 
 /* Weather hint */
 .wx { font-size: 12px; font-weight: 600; color: var(--ink-2); white-space: nowrap; }
-.wx b { color: var(--info); }
+.wx b { color: var(--ink); font-weight: 800; }
 .wx:empty { display: none; }
 
 /* Road crossings strip */
@@ -118,7 +119,7 @@ button { font: inherit; }
 .road { flex: 0 0 auto; border: 1px solid var(--line); border-radius: 10px; padding: 6px 10px; min-width: 150px; font-size: 12px; background: var(--paper); }
 .road__name { font-weight: 700; font-size: 13px; }
 .road__state { font-weight: 800; text-transform: uppercase; letter-spacing: .03em; font-size: 11px; }
-.road__state.ok { color: var(--ok); } .road__state.warn { color: var(--warn); } .road__state.bad { color: var(--bad); }
+.road__state.ok { color: var(--ink-3); } .road__state.warn { color: var(--ink); } .road__state.bad { color: var(--bad); }
 .road__note { color: var(--ink-3); }
 
 /* Bikes */
@@ -132,19 +133,19 @@ button { font: inherit; }
 .bike__nums small { font-size: 10px; text-transform: uppercase; letter-spacing: .04em; color: var(--ink-3); }
 .bike__nums .low b { color: var(--bad); }
 .bike__bar { grid-column: 1 / -1; height: 4px; border-radius: 2px; background: var(--line); overflow: hidden; }
-.bike__bar i { display: block; height: 100%; background: var(--bikes); }
+.bike__bar i { display: block; height: 100%; background: var(--ink-2); }
 
 /* Shuttles */
 .shuttle { padding: 10px 12px; border-top: 1px solid var(--line); font-size: 13px; }
 .shuttle:first-child { border-top: 0; }
 .shuttle b { display: block; font-size: 14px; }
 .shuttle .veh { display: inline-block; margin: 4px 6px 0 0; padding: 3px 8px; border-radius: 999px; background: var(--paper-2); border: 1px solid var(--line); font-size: 12px; }
-.shuttle .veh.on { border-color: var(--ok); color: var(--ok); font-weight: 600; }
+.shuttle .veh.on { border-color: var(--ink); color: var(--ink); font-weight: 700; }
 
 /* Other services */
 .other { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 10px; }
 .svc { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; font-size: 13px; }
 .svc b { display: block; font-size: 14px; }
 .svc .kind { color: var(--ink-3); font-size: 12px; }
-.svc .warn { color: var(--warn); font-weight: 600; }
-.svc a { color: var(--info); font-weight: 600; text-decoration: none; }
+.svc .warn { color: var(--bad); font-weight: 600; }
+.svc a { color: var(--ink); font-weight: 600; text-decoration: underline; text-underline-offset: 2px; }

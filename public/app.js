@@ -85,8 +85,9 @@ function toRow(mode, d) {
   else if (/CANCEL/.test(status)) { cls = 'bad'; badge = 'Cancelled'; }
   else if (d.source === 'schedule' || status === 'SCHEDULED') { cls = 'sched'; badge = 'Scheduled'; }
   const est = d.scheduled ? new Date(new Date(d.scheduled).getTime() + delay * 60000).toISOString() : null;
-  let tag = mode === 'rail' && d.lineAbbr ? `<span class="line" style="background:${esc(d.colors?.bg || '#888')};color:${esc(d.colors?.fg || '#fff')}">${esc(d.lineAbbr)}</span>` : '';
-  if (mode === 'path' && d.lineColor) tag = `<span class="line" style="background:${esc(d.lineColor)};color:#fff">PATH</span>`;
+  const dot = (c) => (c ? `<i class="dot" style="background:${esc(c)}"></i>` : '');
+  let tag = mode === 'rail' && d.lineAbbr ? `<span class="line">${dot(d.colors?.bg)}${esc(d.lineAbbr)}</span>` : '';
+  if (mode === 'path') tag = `<span class="line">${dot(d.lineColor)}PATH</span>`;
   if (mode === 'path' && d.etaText && cls === 'ok') badge = d.etaText;
   const sub = [mode === 'rail' ? d.line : mode === 'lightrail' || mode === 'path' ? d.direction : d.routeName, d.trainId ? `Train ${d.trainId}` : null, d.inlineMessage, d.from].filter(Boolean).join(' · ');
   const track = mode === 'rail' ? (d.track ? `Track ${d.track}` : 'Track TBA') : '';
