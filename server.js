@@ -9,6 +9,11 @@ import hudson from './data/hudson.json' with { type: 'json' };
 import { createRailClient, createBusClient } from './lib/njt.js';
 import { createMockRail, createMockBus, createMockLightRail, createMockFerry } from './lib/mock.js';
 import { createFerryClient } from './lib/ferry.js';
+import { createPathClient } from './lib/path.js';
+import { createBikesClient } from './lib/bikes.js';
+import { createPassioClient } from './lib/passio.js';
+import { createWeatherClient } from './lib/weather.js';
+import { createMockPath, createMockBikes, createMockPassio, createMockRoads, createMockWeather } from './lib/mock.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 loadDotEnv(path.join(__dirname, '.env'));
@@ -35,6 +40,14 @@ try {
   ferry = createMockFerry();
 }
 
+// Keyless public feeds: on by default, off with NJT_MOCK=1 or the per-feed flag.
+const off = (name) => FORCE_MOCK || /^(0|false|off)$/i.test(process.env[name] || '');
+const pathClient = off('PATH_LIVE') ? createMockPath() : createPathClient();
+const bikes = off('BIKES_LIVE') ? createMockBikes() : createBikesClient();
+const passio = off('SHUTTLES_LIVE') ? createMockPassio() : createPassioClient();
+const weather = off('WEATHER_LIVE') ? createMockWeather() : createWeatherClient(hudson.weather);
+const roads = createMockRoads(); // 511NJ needs a developer key; see docs/njt-api.md
+
 const cache = new Map();
 async function cached(key, fn) {
   const hit = cache.get(key);
@@ -49,7 +62,11 @@ const MIME = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=u
 const routes = {
   '/api/meta': async () => ({
     county: hudson.county,
-    modes: { rail: rail.mode, bus: bus.mode, lightRail: lightRail.mode, ferry: ferry.mode },
+    modes: { rail: rail.mode, bus: bus.mode, lightRail: lightRail.mode, ferry: ferry.mode, path: pathClient.mode, bikes: bikes.mode, shuttles: passio.mode, roads: roads.mode, weather: weather.mode },
+    path: hudson.path.stations,
+    shuttles: hudson.shuttles.systems.map(({ passioSystemId, passioHost, ...rest }) => rest),
+    roads: hudson.roads.crossings,
+    other: hudson.other.services,
     notes: hudson.notes,
     ferry: hudson.ferry.terminals,
     nyc: hudson.nyc.areas,
@@ -72,6 +89,29 @@ const routes = {
     if (!hudson.lightRail.stations.some((s) => s.id === station)) throw httpError(400, 'unknown HBLR station');
     return cached(`lr:${station}`, () => lightRail.departures(station));
   },
+  '/api/path/departures': async (q) => {
+    const station = (q.get('station') || 'HOB').toUpperCase();
+    if (!hudson.path.stations.some((s) => s.id === station)) throw httpError(400, 'unknown PATH station');
+    return cached(`path:${station}`, () => pathClient.departures(station));
+  },
+  // Nearest Citi Bike stations (all Hudson County stations when no lat/lon is given).
+  '/api/bikes': async (q) => {
+    const all = await cached('bikes', () => bikes.stations());
+    const lat = Number(q.get('lat')), lon = Number(q.get('lon'));
+    const list = all.map((s) => ({ ...s, km: Number.isFinite(lat) && Number.isFinite(lon) ? haversine(lat, lon, s.lat, s.lon) : null }));
+    list.sort((a, b) => (a.km ?? 1e9) - (b.km ?? 1e9) || a.name.localeCompare(b.name));
+    return { stations: list.slice(0, Number(q.get('limit') || 12)), total: all.length };
+  },
+  '/api/shuttles': async (q) => {
+    const sys = hudson.shuttles.systems.find((x) => x.id === q.get('system'));
+    if (!sys) throw httpError(400, 'unknown shuttle system');
+    return cached(`shuttle:${sys.id}`, async () => {
+      try { return await passio.status(sys); }
+      catch (err) { return { system: sys.id, name: sys.name, live: false, vehicles: [], routes: sys.routes, error: err.message }; }
+    });
+  },
+  '/api/roads': async () => cached('roads', () => roads.status()),
+  '/api/weather': async () => cached('weather', () => weather.now()),
   '/api/ferry/departures': async (q) => {
     const terminal = q.get('terminal') || 'hoboken-njt';
     if (!hudson.ferry.terminals.some((t) => t.id === terminal)) throw httpError(400, 'unknown ferry terminal');
@@ -92,6 +132,8 @@ const routes = {
           .filter((x) => /NEW YORK|PORT AUTH|MIDTOWN|NYC/i.test(`${x.headsign} ${hudson.bus.routeNames[x.route] || ''}`))
           .map((x) => ({ ...x, mode: 'bus', from: hub.name, fromId: id, destination: x.headsign, scheduled: busSchedToIso(x.scheduled) }))));
       }
+      for (const id of area.path || []) jobs.push(pathClient.departures(id).then((d) => d.departures
+        .filter((x) => /New York|33rd|World Trade/i.test(`${x.direction} ${x.destination}`)).map((x) => ({ ...x, mode: 'path', from: `${hudson.path.stations.find((s) => s.id === id)?.name} PATH`, fromId: id }))));
       for (const id of area.ferry) jobs.push(ferry.departures(id).then((d) => d.departures.map((x) => ({ ...x, mode: 'ferry', from: d.terminalName, fromId: id }))));
       const settled = await Promise.allSettled(jobs);
       const rows = settled.flatMap((r) => (r.status === 'fulfilled' ? r.value : []));
@@ -127,7 +169,7 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`HudPost transit MVP on http://localhost:${PORT}  (rail=${rail.mode}, bus=${bus.mode}, lightRail=${lightRail.mode})`);
+  console.log(`Hudson County transit on http://localhost:${PORT}`, { rail: rail.mode, bus: bus.mode, lightRail: lightRail.mode, ferry: ferry.mode, path: pathClient.mode, bikes: bikes.mode, shuttles: passio.mode, weather: weather.mode });
 });
 
 /** BUSDV2 gives "04:55 PM" with no date; anchor it to today (or tomorrow if it already passed by >6h). */
@@ -138,6 +180,11 @@ function busSchedToIso(t) {
   const d = new Date(); d.setHours(h, Number(m[2]), 0, 0);
   if (d.getTime() < Date.now() - 6 * 3600 * 1000) d.setDate(d.getDate() + 1);
   return d.toISOString();
+}
+function haversine(lat1, lon1, lat2, lon2) {
+  const r = Math.PI / 180, dLat = (lat2 - lat1) * r, dLon = (lon2 - lon1) * r;
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * r) * Math.cos(lat2 * r) * Math.sin(dLon / 2) ** 2;
+  return 6371 * 2 * Math.asin(Math.sqrt(h));
 }
 function wrap(data) { return Array.isArray(data) ? { data } : { data }; }
 function httpError(status, message) { const e = new Error(message); e.status = status; return e; }

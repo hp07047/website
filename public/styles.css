@@ -3,7 +3,7 @@
   --brand: #c8102e; --ink: #111214; --ink-2: #4a4d55; --ink-3: #8a8e98;
   --paper: #ffffff; --paper-2: #f5f5f3; --line: #e4e4e0;
   --ok: #1a7f4b; --warn: #b7791f; --bad: #c8102e; --info: #2457c5;
-  --rail: #1d4ed8; --lightrail: #0d9488; --bus: #7c3aed; --ferry: #0369a1;
+  --rail: #1d4ed8; --lightrail: #0d9488; --bus: #7c3aed; --ferry: #0369a1; --path: #b45309; --bikes: #0f766e; --shuttles: #be185d;
   --sans: Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --radius: 12px;
 }
@@ -55,6 +55,7 @@ button { font: inherit; }
 /* Mode pill & star */
 .mode { display: inline-block; font-size: 10px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: #fff; padding: 2px 6px; border-radius: 4px; }
 .mode.rail { background: var(--rail); } .mode.lightrail { background: var(--lightrail); } .mode.bus { background: var(--bus); } .mode.ferry { background: var(--ferry); }
+.mode.path { background: var(--path); } .mode.bikes { background: var(--bikes); } .mode.shuttles { background: var(--shuttles); }
 .star { appearance: none; border: 0; background: none; cursor: pointer; font-size: 20px; line-height: 1; color: var(--ink-3); padding: 2px 4px; }
 .star.is-on { color: var(--warn); }
 
@@ -105,3 +106,45 @@ button { font: inherit; }
   .row__eta { font-size: 18px; }
   .topbar__title { font-size: 14px; }
 }
+
+/* Weather hint */
+.wx { font-size: 12px; font-weight: 600; color: var(--ink-2); white-space: nowrap; }
+.wx b { color: var(--info); }
+.wx:empty { display: none; }
+
+/* Road crossings strip */
+.roads { display: flex; gap: 8px; overflow-x: auto; margin-top: 14px; padding-bottom: 4px; scrollbar-width: thin; }
+.roads:empty { display: none; }
+.road { flex: 0 0 auto; border: 1px solid var(--line); border-radius: 10px; padding: 6px 10px; min-width: 150px; font-size: 12px; background: var(--paper); }
+.road__name { font-weight: 700; font-size: 13px; }
+.road__state { font-weight: 800; text-transform: uppercase; letter-spacing: .03em; font-size: 11px; }
+.road__state.ok { color: var(--ok); } .road__state.warn { color: var(--warn); } .road__state.bad { color: var(--bad); }
+.road__note { color: var(--ink-3); }
+
+/* Bikes */
+.bike { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; padding: 9px 12px; border-top: 1px solid var(--line); }
+.bike:first-child { border-top: 0; }
+.bike__name { font-weight: 600; }
+.bike__sub { font-size: 12px; color: var(--ink-3); }
+.bike__nums { display: flex; gap: 10px; font-variant-numeric: tabular-nums; text-align: center; }
+.bike__nums div { min-width: 44px; }
+.bike__nums b { display: block; font-size: 18px; line-height: 1; }
+.bike__nums small { font-size: 10px; text-transform: uppercase; letter-spacing: .04em; color: var(--ink-3); }
+.bike__nums .low b { color: var(--bad); }
+.bike__bar { grid-column: 1 / -1; height: 4px; border-radius: 2px; background: var(--line); overflow: hidden; }
+.bike__bar i { display: block; height: 100%; background: var(--bikes); }
+
+/* Shuttles */
+.shuttle { padding: 10px 12px; border-top: 1px solid var(--line); font-size: 13px; }
+.shuttle:first-child { border-top: 0; }
+.shuttle b { display: block; font-size: 14px; }
+.shuttle .veh { display: inline-block; margin: 4px 6px 0 0; padding: 3px 8px; border-radius: 999px; background: var(--paper-2); border: 1px solid var(--line); font-size: 12px; }
+.shuttle .veh.on { border-color: var(--ok); color: var(--ok); font-weight: 600; }
+
+/* Other services */
+.other { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 10px; }
+.svc { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; font-size: 13px; }
+.svc b { display: block; font-size: 14px; }
+.svc .kind { color: var(--ink-3); font-size: 12px; }
+.svc .warn { color: var(--warn); font-weight: 600; }
+.svc a { color: var(--info); font-weight: 600; text-decoration: none; }

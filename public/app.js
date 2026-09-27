@@ -7,7 +7,7 @@
    5. Scheduled (non-live) rows are labeled as such. */
 
 const REFRESH_MS = 30_000, TICK_MS = 5_000, STALE_MS = 90_000;
-const MODE_LABEL = { rail: 'Rail', lightrail: 'Light Rail', bus: 'Bus', ferry: 'Ferry' };
+const MODE_LABEL = { rail: 'Rail', lightrail: 'Light Rail', bus: 'Bus', ferry: 'Ferry', path: 'PATH', bikes: 'Citi Bike', shuttles: 'Shuttle' };
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const fmt = (iso) => new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
@@ -25,7 +25,9 @@ function persist() { try { localStorage.setItem('hct', JSON.stringify({ favorite
 const keyOf = (mode, id) => `${mode}:${id}`;
 function urlFor(mode, id) {
   return { rail: `/api/rail/departures?station=${id}`, lightrail: `/api/lightrail/departures?station=${id}`,
-    bus: `/api/bus/departures?hub=${id}`, ferry: `/api/ferry/departures?terminal=${id}`, nyc: `/api/nyc?area=${id}` }[mode];
+    bus: `/api/bus/departures?hub=${id}`, ferry: `/api/ferry/departures?terminal=${id}`, nyc: `/api/nyc?area=${id}`,
+    path: `/api/path/departures?station=${id}`, bikes: `/api/bikes?limit=40${state.loc ? `&lat=${state.loc.lat}&lon=${state.loc.lon}` : ''}`,
+    shuttles: `/api/shuttles?system=${id}`, roads: '/api/roads', weather: '/api/weather' }[mode];
 }
 async function api(path) {
   const res = await fetch(path, { cache: 'no-store' });
@@ -47,7 +49,9 @@ async function load(mode, id, { force = false } = {}) {
 
 function stopsOf(mode) {
   const m = state.meta;
-  return { rail: m.rail.map((s) => ({ ...s, id: s.code })), lightrail: m.lightRail, bus: m.bus.hubs, ferry: m.ferry.map((t) => ({ ...t })) }[mode];
+  const bikeStations = state.boards.get('bikes:all')?.data?.stations || [];
+  return { rail: m.rail.map((s) => ({ ...s, id: s.code })), lightrail: m.lightRail, bus: m.bus.hubs, ferry: m.ferry.map((t) => ({ ...t })),
+    path: m.path, bikes: bikeStations.map((b) => ({ ...b, town: `${b.bikes} bikes · ${b.docks} docks` })), shuttles: m.shuttles }[mode];
 }
 function stopName(mode, id) { return stopsOf(mode).find((s) => s.id === id)?.name || id; }
 const isFav = (mode, id) => state.favorites.some((f) => f.mode === mode && f.id === id);
@@ -81,8 +85,10 @@ function toRow(mode, d) {
   else if (/CANCEL/.test(status)) { cls = 'bad'; badge = 'Cancelled'; }
   else if (d.source === 'schedule' || status === 'SCHEDULED') { cls = 'sched'; badge = 'Scheduled'; }
   const est = d.scheduled ? new Date(new Date(d.scheduled).getTime() + delay * 60000).toISOString() : null;
-  const tag = mode === 'rail' && d.lineAbbr ? `<span class="line" style="background:${esc(d.colors?.bg || '#888')};color:${esc(d.colors?.fg || '#fff')}">${esc(d.lineAbbr)}</span>` : '';
-  const sub = [mode === 'rail' ? d.line : mode === 'lightrail' ? d.direction : d.routeName, d.trainId ? `Train ${d.trainId}` : null, d.inlineMessage, d.from].filter(Boolean).join(' · ');
+  let tag = mode === 'rail' && d.lineAbbr ? `<span class="line" style="background:${esc(d.colors?.bg || '#888')};color:${esc(d.colors?.fg || '#fff')}">${esc(d.lineAbbr)}</span>` : '';
+  if (mode === 'path' && d.lineColor) tag = `<span class="line" style="background:${esc(d.lineColor)};color:#fff">PATH</span>`;
+  if (mode === 'path' && d.etaText && cls === 'ok') badge = d.etaText;
+  const sub = [mode === 'rail' ? d.line : mode === 'lightrail' || mode === 'path' ? d.direction : d.routeName, d.trainId ? `Train ${d.trainId}` : null, d.inlineMessage, d.from].filter(Boolean).join(' · ');
   const track = mode === 'rail' ? (d.track ? `Track ${d.track}` : 'Track TBA') : '';
   return { badge, cls, etaMin: est ? mins(est) : null, scheduledIso: d.scheduled, estIso: est, delay, dest: d.destination, tag, sub, right2: track, live: d.source !== 'schedule' };
 }
@@ -102,10 +108,45 @@ function rowsHtml(mode, list, limit) {
   const rows = (list || []).filter((d) => !isIso(d.scheduled) || mins(d.scheduled) > -2).slice(0, limit);
   return rows.length ? rows.map((d) => rowHtml(mode, d)).join('') : '<div class="empty">Nothing in the next hour.</div>';
 }
+function bikesHtml(stations, limit) {
+  const list = (stations || []).slice(0, limit);
+  if (!list.length) return '<div class="empty">No stations found.</div>';
+  return list.map((s) => {
+    const pct = s.capacity ? Math.round((s.bikes / s.capacity) * 100) : 0;
+    return `<div class="bike">
+      <div><div class="bike__name">${esc(s.name)}</div><div class="bike__sub">${s.km != null ? fmtDist(s.km) + ' · ' : ''}${!s.renting ? 'Not renting · ' : ''}${!s.returning ? 'Not accepting returns · ' : ''}${s.updated ? 'reported ' + fmt(s.updated) : ''}</div></div>
+      <div class="bike__nums">
+        <div class="${s.bikes <= 2 ? 'low' : ''}"><b>${s.bikes}</b><small>bikes</small></div>
+        <div><b>${s.ebikes}</b><small>e-bikes</small></div>
+        <div class="${s.docks <= 2 ? 'low' : ''}"><b>${s.docks}</b><small>docks</small></div>
+      </div>
+      <div class="bike__bar"><i style="width:${pct}%"></i></div>
+    </div>`;
+  }).join('');
+}
+function shuttleHtml(d, sys) {
+  const veh = d.vehicles || [];
+  const byRoute = {};
+  for (const v of veh) (byRoute[v.route] ||= []).push(v);
+  const routes = d.routes?.length ? d.routes : sys.routes;
+  return `<div class="shuttle">
+    <b>${veh.length ? `${veh.length} shuttle${veh.length > 1 ? 's' : ''} on the road now` : 'No shuttles reporting right now'}</b>
+    ${routes.map((r) => `<span class="veh ${byRoute[r]?.length ? 'on' : ''}">${esc(r)}${byRoute[r]?.length ? ` · ${byRoute[r].length} live${byRoute[r][0].lastStop ? ` · near ${esc(byRoute[r][0].lastStop)}` : ''}` : ''}</span>`).join('')}
+    <div class="row__sub" style="margin-top:6px">${esc(sys.fare)} · ${esc(sys.hours)}${sys.tips ? ` · ${esc(sys.tips)}` : ''}${d.error ? ` · <span class="stale">tracking unavailable: ${esc(d.error)}</span>` : ''}</div>
+  </div>`;
+}
 function boardHtml(mode, id, limit = 8) {
+  if (mode === 'bikes') {
+    const all = state.boards.get('bikes:all');
+    if (!all || (!all.data && !all.error)) return '<div class="loading">Loading…</div>';
+    if (!all.data) return `<div class="error">Couldn't load (${esc(all.error)}).</div>`;
+    const list = id === 'all' ? all.data.stations : all.data.stations.filter((s) => s.id === id);
+    return bikesHtml(list, limit);
+  }
   const b = state.boards.get(keyOf(mode, id));
   if (!b || (!b.data && !b.error)) return '<div class="loading">Loading…</div>';
   if (!b.data) return `<div class="error">Couldn't load (${esc(b.error)}).</div>`;
+  if (mode === 'shuttles') return shuttleHtml(b.data, state.meta.shuttles.find((x) => x.id === id));
   const msg = b.data.message ? `<div class="note">${esc(b.data.message)}</div>` : '';
   return rowsHtml(mode, b.data.departures, limit) + msg;
 }
@@ -117,7 +158,31 @@ function ageText(b) {
 }
 
 /* ---------- render ---------- */
-function render() { renderFresh(); renderFavs(); renderNyc(); renderAll(); }
+function render() { renderFresh(); renderWx(); renderRoads(); renderFavs(); renderNyc(); renderAll(); renderOther(); }
+
+function renderWx() {
+  const b = state.boards.get('weather:now'); const w = b?.data; const el = $('wx');
+  if (!w) { el.textContent = ''; return; }
+  const rain = w.rainAt ? `<b>rain ${mins(w.rainAt) <= 0 ? 'now' : 'by ' + fmt(w.rainAt)}</b>` : w.precipPct >= 40 ? `<b>${w.precipPct}% rain</b>` : '';
+  const wind = w.windMph >= 20 ? `<b>wind ${w.windMph} mph</b>` : '';
+  el.innerHTML = [`${w.tempF}°`, esc(w.short), rain, wind].filter(Boolean).join(' · ');
+}
+function renderRoads() {
+  const b = state.boards.get('roads:now'); const el = $('roads');
+  if (!b?.data) { el.innerHTML = ''; return; }
+  el.innerHTML = b.data.map((r) => {
+    const cls = /incident|closed/i.test(r.state) ? 'bad' : /heavy|delay/i.test(r.state) ? 'warn' : 'ok';
+    return `<div class="road"><div class="road__name">${esc(r.name)}</div>
+      <span class="road__state ${cls}">${esc(r.state)}</span>${r.inboundMin != null ? ` <span class="road__note">· ${r.inboundMin} min inbound</span>` : ''}
+      ${r.note ? `<div class="road__note">${esc(r.note)}</div>` : ''}</div>`;
+  }).join('') + (b.data[0]?.source === 'mock' ? '<div class="road road__note" style="align-self:center;border:0">Road status is demo data until 511NJ is connected.</div>' : '');
+}
+function renderOther() {
+  const el = $('other');
+  if (el.dataset.done) return; el.dataset.done = '1';
+  el.innerHTML = state.meta.other.map((s) => `<div class="svc"><b>${esc(s.name)}</b><span class="kind">${esc(s.kind)} · ${esc(s.area)}</span>
+    <div>${esc(s.cost)}${s.hours ? ` · ${esc(s.hours)}` : ''}</div>${s.status ? `<div class="warn">${esc(s.status)}</div>` : ''}${s.url ? `<a href="${esc(s.url)}" target="_blank" rel="noopener">Operator site ↗</a>` : ''}</div>`).join('');
+}
 
 function renderFresh() {
   const modes = state.meta.modes;
@@ -139,7 +204,7 @@ function renderFavs() {
     return;
   }
   el.innerHTML = state.favorites.map(({ mode, id }) => {
-    const b = state.boards.get(keyOf(mode, id));
+    const b = state.boards.get(mode === 'bikes' ? 'bikes:all' : keyOf(mode, id));
     const stale = b?.fetchedAt && (b.error || Date.now() - b.fetchedAt > STALE_MS);
     return `<article class="card ${stale ? 'is-stale' : ''}">
       <div class="card__head"><span class="mode ${mode}">${MODE_LABEL[mode]}</span><span class="card__name">${esc(stopName(mode, id))}</span>
@@ -164,10 +229,18 @@ function renderNyc() {
 function renderAll() {
   document.querySelectorAll('.tab').forEach((t) => t.classList.toggle('is-active', t.dataset.mode === state.mode));
   const q = state.query.trim().toLowerCase();
-  const modes = q ? ['rail', 'lightrail', 'bus', 'ferry'] : [state.mode];
+  const modes = q ? ['rail', 'lightrail', 'bus', 'path', 'ferry', 'bikes', 'shuttles'] : [state.mode];
+  if (state.mode === 'bikes' && !q) {
+    const b = state.boards.get('bikes:all');
+    $('all-hint').textContent = state.loc ? 'Nearest Citi Bike docks first.' : 'Citi Bike docks in Jersey City and Hoboken. Tap Nearby to sort by distance.';
+    $('nearby-btn').classList.toggle('is-active', !!state.loc);
+    $('stoplist').innerHTML = (b?.data ? bikesHtml(b.data.stations, 40) : b?.error ? `<div class="error">Couldn't load (${esc(b.error)}).</div>` : '<div class="loading">Loading…</div>')
+      + `<div class="note">${ageText(b)} · star a dock from search to pin it</div>`;
+    return;
+  }
   let items = modes.flatMap((mode) => stopsOf(mode).map((s) => ({ mode, s })));
   if (q) items = items.filter(({ s }) => `${s.name} ${s.town} ${(s.routes || []).join(' ')} ${(s.lines || []).join(' ')}`.toLowerCase().includes(q));
-  if (state.loc) items.forEach((it) => { it.km = distKm(state.loc, it.s); });
+  if (state.loc) items.forEach((it) => { it.km = it.s.lat != null ? distKm(state.loc, it.s) : Infinity; });
   items.sort((a, b) => (state.loc ? a.km - b.km : a.s.name.localeCompare(b.s.name)));
   $('all-hint').textContent = state.loc ? 'Sorted by distance from you.' : 'Alphabetical. Tap Nearby to sort by distance.';
   $('nearby-btn').classList.toggle('is-active', !!state.loc);
@@ -193,7 +266,9 @@ function renderAlerts(msgs) {
 
 /* ---------- refresh loop ---------- */
 function refreshAll(force = false) {
-  for (const f of state.favorites) load(f.mode, f.id, { force });
+  for (const f of state.favorites) if (f.mode !== 'bikes') load(f.mode, f.id, { force });
+  if (state.mode === 'bikes' || state.favorites.some((f) => f.mode === 'bikes') || state.query) load('bikes', 'all', { force });
+  load('roads', 'now', { force }); load('weather', 'now', { force });
   load('nyc', state.area, { force });
   if (state.open) { const [m, id] = state.open.split(':'); load(m, id, { force }); }
   const railFav = state.favorites.find((f) => f.mode === 'rail');
@@ -210,15 +285,15 @@ document.addEventListener('click', (e) => {
   const area = e.target.closest('[data-area]');
   if (area) { state.area = area.dataset.area; persist(); load('nyc', state.area); render(); return; }
   const tab = e.target.closest('.tab');
-  if (tab) { state.mode = tab.dataset.mode; state.query = ''; $('search').value = ''; persist(); render(); }
+  if (tab) { state.mode = tab.dataset.mode; state.query = ''; $('search').value = ''; persist(); if (state.mode === 'bikes') load('bikes', 'all'); render(); }
 });
-$('search').addEventListener('input', (e) => { state.query = e.target.value; renderAll(); });
+$('search').addEventListener('input', (e) => { state.query = e.target.value; if (state.query) load('bikes', 'all'); renderAll(); });
 $('nearby-btn').addEventListener('click', () => {
   if (state.loc) { state.loc = null; persist(); renderAll(); return; }
   if (!navigator.geolocation) { alert('Location is not available in this browser.'); return; }
   $('nearby-btn').textContent = '⌖ Locating…';
   navigator.geolocation.getCurrentPosition(
-    (p) => { state.loc = { lat: p.coords.latitude, lon: p.coords.longitude }; persist(); $('nearby-btn').textContent = '⌖ Nearby'; renderAll(); },
+    (p) => { state.loc = { lat: p.coords.latitude, lon: p.coords.longitude }; persist(); $('nearby-btn').textContent = '⌖ Nearby'; load('bikes', 'all', { force: true }); renderAll(); },
     () => { $('nearby-btn').textContent = '⌖ Nearby'; alert('Couldn\'t get your location. Check the browser permission and try again.'); },
     { maximumAge: 60_000, timeout: 8_000 });
 });

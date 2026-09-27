@@ -14,6 +14,7 @@
   <div class="topbar">
     <div class="wrap topbar__row">
       <div class="topbar__title">Hudson County Transit</div>
+      <div class="wx" id="wx" title="National Weather Service, Hoboken"></div>
       <div class="fresh" id="fresh" role="status"><span class="dot" aria-hidden="true"></span><span id="fresh-text">Connecting…</span></div>
       <button class="btn" id="nearby-btn" type="button" title="Sort stops by distance from you">⌖ Nearby</button>
     </div>
@@ -24,6 +25,7 @@
 
   <main class="wrap">
     <div id="alerts" class="alerts" hidden></div>
+    <div class="roads" id="roads" aria-label="Road crossings"></div>
 
     <section class="sec" id="sec-fav" aria-labelledby="h-fav">
       <div class="sec__head"><h2 id="h-fav">Your stops</h2><span class="hint">Starred stops load here first, no clicks.</span></div>
@@ -42,12 +44,20 @@
         <button class="tab is-active" role="tab" data-mode="rail">Rail</button>
         <button class="tab" role="tab" data-mode="lightrail">Light Rail</button>
         <button class="tab" role="tab" data-mode="bus">Bus</button>
+        <button class="tab" role="tab" data-mode="path">PATH</button>
         <button class="tab" role="tab" data-mode="ferry">Ferry</button>
+        <button class="tab" role="tab" data-mode="bikes">Citi Bike</button>
+        <button class="tab" role="tab" data-mode="shuttles">Shuttles</button>
       </div>
       <div class="stoplist" id="stoplist"></div>
     </section>
 
-    <p class="fine">Times come from NJ TRANSIT and NY Waterway feeds and can change. Rows marked <em>scheduled</em> are timetable only, not live. PATH is not included yet.</p>
+    <section class="sec" id="sec-other" aria-labelledby="h-other">
+      <div class="sec__head"><h2 id="h-other">Also in the county</h2><span class="hint">Services with no live feed. Hours and fares as published by the operator.</span></div>
+      <div class="other" id="other"></div>
+    </section>
+
+    <p class="fine">Times come from NJ TRANSIT and NY Waterway feeds and can change. Rows marked <em>scheduled</em> are timetable only, not live. PATH times come from the Port Authority's RidePATH feed, Citi Bike counts from its public GBFS feed, road status from 511NJ when connected.</p>
   </main>
 
   <script src="/app.js" type="module"></script>

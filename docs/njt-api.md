@@ -60,3 +60,24 @@ accept `LIGHTRAIL`, but neither is documented publicly. For the MVP light rail i
 2. Whether the rail portal account is approved for production (`raildata`) or only test (`testraildata`).
 3. Whether `getVehicleLocations` returns light rail vehicles with `mode=LIGHTRAIL`.
 4. Exact casing of a few wrapper fields (`ITEMS`, `DVTrip`); `lib/njt.js` accepts both cases where seen.
+
+# Other feeds we use or want
+
+| Mode | Source | Key? | Status in this repo |
+|---|---|---|---|
+| **PATH** (JSQ, GRV, EXP, NEW, HOB, HAR) | Port Authority RidePATH JSON `https://www.panynj.gov/bin/portauthority/ridepath.json` (~15 s refresh) | No | `lib/path.js` live adapter, on by default; mock fallback |
+| **Citi Bike** (Jersey City + Hoboken) | GBFS `https://gbfs.citibikenyc.com/gbfs/2.3/gbfs.json` → `station_information`, `station_status` | No | `lib/bikes.js` live adapter, filtered to the Hudson County bounding box |
+| **Hoboken Hop, Secaucus XChange shuttle** | Passio GO unofficial JSON (`passiogo.com/mapGetData.php`, see athuler/PassioGo). Also GTFS per system. | No, but needs each system's `systemId` from hoboken.passiogo.com / uc.passiogo.com | `lib/passio.js` adapter; `passioSystemId` still null in `data/hudson.json` → mock |
+| **NY Waterway** (7 terminals) | GTFS static zip; GTFS-RT protobuf | No | `lib/ferry.js` over `lib/gtfs.js` when `NYWW_GTFS_PATH` is set |
+| **Roads** (Holland, Lincoln, Pulaski, Turnpike Ext, Bayonne Bridge, Rt 139) | 511NJ developer API (register at 511nj.org); PANYNJ crossing feeds | Yes | Mock only; strip is labeled demo |
+| **Weather** | NWS `https://api.weather.gov/points/{lat},{lon}` → `forecastHourly` | No (User-Agent required) | `lib/weather.js` live adapter |
+| **NJ Transit GTFS-RT alerts** | protobuf feed from the developer portal | Yes | Not wired; rail banner messages used instead |
+| **Via Jersey City** | No public API | – | Static card; city proposed cutting it (May 2026) |
+| **Liberty Landing Ferry, EZ Ride 273, Secaucus Community Shuttle, jitneys, Senior Shuttle, Access Link, cruise shuttles** | Operator web pages only | – | Static cards under "Also in the county" |
+
+## Considered and left out
+
+- **NYC Ferry, Seastreak, Newark Light Rail, Amtrak** – no Hudson County stops.
+- **Scooters** – Hoboken's Lime pilot ended; no current county program.
+- **Parking availability at Secaucus / Journal Square** – no feed.
+- **Port Authority Bus Terminal gate assignments** – not published as data.

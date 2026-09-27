@@ -446,6 +446,18 @@
         ]
       },
       {
+        "id": "liberty-harbor",
+        "name": "Liberty Harbor / Marin Blvd",
+        "town": "Jersey City",
+        "lat": 40.7118,
+        "lon": -74.0386,
+        "gtfsStopId": null,
+        "routes": [
+          "Pier 11 / Wall St",
+          "Brookfield Place (via Paulus Hook)"
+        ]
+      },
+      {
         "id": "port-liberte",
         "name": "Port Liberté",
         "town": "Jersey City",
@@ -459,7 +471,7 @@
     ]
   },
   "nyc": {
-    "note": "'To Manhattan' view: for each Hudson County area, the boards that carry NYC-bound service. PATH is not covered by any feed we have.",
+    "note": "'To Manhattan' view: for each Hudson County area, the boards that carry NYC-bound service across NJ Transit rail, PATH, bus and ferry.",
     "areas": [
       {
         "id": "hoboken",
@@ -471,6 +483,9 @@
         "ferry": [
           "hoboken-njt",
           "hoboken-14th"
+        ],
+        "path": [
+          "HOB"
         ]
       },
       {
@@ -480,7 +495,8 @@
           "SE"
         ],
         "bus": [],
-        "ferry": []
+        "ferry": [],
+        "path": []
       },
       {
         "id": "jc-waterfront",
@@ -489,6 +505,11 @@
         "bus": [],
         "ferry": [
           "paulus-hook"
+        ],
+        "path": [
+          "EXP",
+          "NEW",
+          "GRV"
         ]
       },
       {
@@ -498,7 +519,10 @@
         "bus": [
           "journal-square"
         ],
-        "ferry": []
+        "ferry": [],
+        "path": [
+          "JSQ"
+        ]
       },
       {
         "id": "weehawken",
@@ -508,7 +532,8 @@
         "ferry": [
           "port-imperial",
           "lincoln-harbor"
-        ]
+        ],
+        "path": []
       },
       {
         "id": "union-city",
@@ -517,7 +542,8 @@
         "bus": [
           "bergenline-32nd"
         ],
-        "ferry": []
+        "ferry": [],
+        "path": []
       },
       {
         "id": "north-bergen",
@@ -526,7 +552,8 @@
         "bus": [
           "north-bergen-park-ride"
         ],
-        "ferry": []
+        "ferry": [],
+        "path": []
       },
       {
         "id": "bayonne",
@@ -537,8 +564,340 @@
         ],
         "ferry": [
           "port-liberte"
+        ],
+        "path": []
+      },
+      {
+        "id": "harrison",
+        "name": "Harrison",
+        "rail": [],
+        "bus": [],
+        "ferry": [],
+        "path": [
+          "HAR"
         ]
       }
     ]
+  },
+  "path": {
+    "note": "PATH (Port Authority) stations in Hudson County. Codes are the RidePATH feed's consideredStation values. Real-time source: https://www.panynj.gov/bin/portauthority/ridepath.json (public, no key, refreshes ~15 s).",
+    "stations": [
+      {
+        "id": "JSQ",
+        "name": "Journal Square",
+        "town": "Jersey City",
+        "lat": 40.7325,
+        "lon": -74.063,
+        "lines": [
+          "JSQ–33 St",
+          "NWK–WTC",
+          "JSQ–33 via HOB (nights/weekends)"
+        ]
+      },
+      {
+        "id": "GRV",
+        "name": "Grove Street",
+        "town": "Jersey City",
+        "lat": 40.7196,
+        "lon": -74.0434,
+        "lines": [
+          "JSQ–33 St",
+          "NWK–WTC"
+        ]
+      },
+      {
+        "id": "EXP",
+        "name": "Exchange Place",
+        "town": "Jersey City",
+        "lat": 40.7163,
+        "lon": -74.0329,
+        "lines": [
+          "NWK–WTC",
+          "HOB–WTC"
+        ]
+      },
+      {
+        "id": "NEW",
+        "name": "Newport",
+        "town": "Jersey City",
+        "lat": 40.7268,
+        "lon": -74.0338,
+        "lines": [
+          "JSQ–33 St",
+          "HOB–33 St"
+        ]
+      },
+      {
+        "id": "HOB",
+        "name": "Hoboken",
+        "town": "Hoboken",
+        "lat": 40.7355,
+        "lon": -74.0279,
+        "lines": [
+          "HOB–33 St",
+          "HOB–WTC"
+        ]
+      },
+      {
+        "id": "HAR",
+        "name": "Harrison",
+        "town": "Harrison",
+        "lat": 40.7386,
+        "lon": -74.1555,
+        "lines": [
+          "NWK–WTC"
+        ]
+      }
+    ]
+  },
+  "bikes": {
+    "note": "Citi Bike covers Jersey City and Hoboken. Feed: GBFS at https://gbfs.citibikenyc.com/gbfs/2.3/gbfs.json (station_information + station_status, public, no key). We keep stations inside the Hudson County bounding box.",
+    "bbox": {
+      "minLat": 40.64,
+      "maxLat": 40.81,
+      "minLon": -74.17,
+      "maxLon": -74.0
+    },
+    "mockStations": [
+      {
+        "id": "JC001",
+        "name": "Grove St PATH",
+        "lat": 40.7196,
+        "lon": -74.0434,
+        "capacity": 38
+      },
+      {
+        "id": "JC002",
+        "name": "Newport PATH",
+        "lat": 40.7273,
+        "lon": -74.0338,
+        "capacity": 30
+      },
+      {
+        "id": "JC003",
+        "name": "Exchange Place",
+        "lat": 40.7163,
+        "lon": -74.0329,
+        "capacity": 27
+      },
+      {
+        "id": "HB001",
+        "name": "Hoboken Terminal – River St & Hudson Pl",
+        "lat": 40.7359,
+        "lon": -74.0303,
+        "capacity": 40
+      },
+      {
+        "id": "HB002",
+        "name": "14 St Ferry – 14 St & Shipyard Ln",
+        "lat": 40.753,
+        "lon": -74.0248,
+        "capacity": 25
+      },
+      {
+        "id": "JC004",
+        "name": "Journal Square",
+        "lat": 40.7333,
+        "lon": -74.0627,
+        "capacity": 35
+      },
+      {
+        "id": "JC005",
+        "name": "Hamilton Park",
+        "lat": 40.7273,
+        "lon": -74.0443,
+        "capacity": 24
+      },
+      {
+        "id": "JC006",
+        "name": "Liberty Light Rail",
+        "lat": 40.7113,
+        "lon": -74.0556,
+        "capacity": 19
+      },
+      {
+        "id": "JC007",
+        "name": "Marin Light Rail",
+        "lat": 40.7145,
+        "lon": -74.0428,
+        "capacity": 31
+      },
+      {
+        "id": "HB003",
+        "name": "Church Sq Park – 5 St & Park Ave",
+        "lat": 40.7423,
+        "lon": -74.0326,
+        "capacity": 21
+      }
+    ]
+  },
+  "shuttles": {
+    "note": "Free municipal shuttles. Both run on Passio GO, which has an unofficial public JSON API (passiogo.com/mapGetData.php); systemId must be read from hoboken.passiogo.com / uc.passiogo.com and filled in. Hours are from the operators' pages and should be re-verified each season.",
+    "systems": [
+      {
+        "id": "hop",
+        "name": "The Hop (Hoboken)",
+        "town": "Hoboken",
+        "lat": 40.7355,
+        "lon": -74.0279,
+        "passioSystemId": null,
+        "passioHost": "hoboken.passiogo.com",
+        "fare": "Free",
+        "hours": "Three routes weekdays 7:30 am – 7:30 pm; departures from Hoboken Terminal at :00 and :30",
+        "routes": [
+          "Hop 1",
+          "Hop 2",
+          "Hop 3",
+          "Senior Shuttle (Mon–Fri 8 am – 4 pm)"
+        ],
+        "tips": "Flag it down at any intersection. Construction near Hoboken Terminal is detouring routes in 2026.",
+        "url": "https://www.hobokennj.gov/resources/the-hop"
+      },
+      {
+        "id": "secaucus-xchange",
+        "name": "XChange Shuttle (Secaucus Junction)",
+        "town": "Secaucus",
+        "lat": 40.7613,
+        "lon": -74.0758,
+        "passioSystemId": null,
+        "passioHost": "uc.passiogo.com",
+        "fare": "Free",
+        "hours": "Peak hours, weekdays",
+        "routes": [
+          "Secaucus Junction ↔ XChange / Harmon Cove"
+        ],
+        "tips": "Meets NJ Transit trains at the Junction.",
+        "url": "https://uc.passiogo.com/"
+      }
+    ]
+  },
+  "roads": {
+    "note": "Hudson River crossings and the county's chokepoints. Live status needs a 511NJ developer account (511nj.org) or the Port Authority's crossing feeds; until then this is mock. Order = most-asked first.",
+    "crossings": [
+      {
+        "id": "holland",
+        "name": "Holland Tunnel",
+        "from": "Jersey City",
+        "to": "Canal St, Manhattan",
+        "operator": "PANYNJ"
+      },
+      {
+        "id": "lincoln",
+        "name": "Lincoln Tunnel",
+        "from": "Weehawken",
+        "to": "W 39th St, Manhattan",
+        "operator": "PANYNJ"
+      },
+      {
+        "id": "pulaski",
+        "name": "Pulaski Skyway (US 1/9)",
+        "from": "Jersey City",
+        "to": "Newark",
+        "operator": "NJDOT"
+      },
+      {
+        "id": "tpk-ext",
+        "name": "NJ Turnpike Hudson County Extension (I-78)",
+        "from": "Bayonne / Jersey City",
+        "to": "Newark Bay Bridge",
+        "operator": "NJTA"
+      },
+      {
+        "id": "bayonne-bridge",
+        "name": "Bayonne Bridge",
+        "from": "Bayonne",
+        "to": "Staten Island",
+        "operator": "PANYNJ"
+      },
+      {
+        "id": "rt-139",
+        "name": "Route 139 / 14th St Viaduct",
+        "from": "Jersey City",
+        "to": "Holland Tunnel approach",
+        "operator": "NJDOT"
+      }
+    ]
+  },
+  "other": {
+    "note": "Services readers ask about that have no machine-readable feed we can reach. Static, linked, and labeled 'no live data'.",
+    "services": [
+      {
+        "name": "Via Jersey City",
+        "kind": "On-demand shared rides",
+        "area": "Jersey City",
+        "cost": "$2 per ride; free to/from Port Liberté ferry",
+        "hours": "Book in the Via Jersey City app or 201-514-6637",
+        "status": "City proposed cutting the service in May 2026 — confirm it is still running",
+        "url": "https://city.ridewithvia.com/jersey-city"
+      },
+      {
+        "name": "Liberty Landing Ferry",
+        "kind": "Ferry",
+        "area": "Liberty Landing Marina & Warren St, Jersey City → Brookfield Place",
+        "cost": "Paid; seasonal, about a dozen trips a day",
+        "hours": "See operator",
+        "status": "",
+        "url": "https://www.libertylandingferry.com/"
+      },
+      {
+        "name": "EZ Ride Harmon Meadow Shuttle (273)",
+        "kind": "Free employer shuttle",
+        "area": "Secaucus Junction ↔ Harmon Meadow / Osprey Cove",
+        "cost": "Free",
+        "hours": "Weekdays 7–10 am and 4–8 pm",
+        "status": "",
+        "url": "https://ezride.org/route/seacaucus-junction/"
+      },
+      {
+        "name": "Secaucus Community Shuttle",
+        "kind": "Town shuttle",
+        "area": "Secaucus neighborhoods ↔ Secaucus Junction",
+        "cost": "Free",
+        "hours": "Weekday peak hours",
+        "status": "",
+        "url": "https://www.secaucusnj.net/transportation/bus.htm"
+      },
+      {
+        "name": "Bergenline & Boulevard East jitneys",
+        "kind": "Private minibuses",
+        "area": "Union City, West New York, North Bergen ↔ Port Authority / Journal Square",
+        "cost": "Cash, a few dollars",
+        "hours": "Frequent, no schedule",
+        "status": "No tracking; flag one down",
+        "url": ""
+      },
+      {
+        "name": "Hoboken Senior Shuttle",
+        "kind": "Free shuttle for seniors",
+        "area": "Hoboken",
+        "cost": "Free",
+        "hours": "Mon–Fri 8 am – 4 pm; Saturday shopping run 11 am – 4 pm",
+        "status": "",
+        "url": "https://www.hobokennj.gov/resources/senior-shuttle"
+      },
+      {
+        "name": "NJ Transit Access Link",
+        "kind": "ADA paratransit",
+        "area": "Countywide, reservation only",
+        "cost": "Comparable bus fare",
+        "hours": "Book 1–7 days ahead",
+        "status": "",
+        "url": "https://www.njtransit.com/accessibility/access-link-ada-paratransit"
+      },
+      {
+        "name": "Cape Liberty Cruise Port shuttles",
+        "kind": "Private shuttles",
+        "area": "Bayonne cruise terminal ↔ NYC airports / Manhattan",
+        "cost": "Paid",
+        "hours": "Sailing days",
+        "status": "",
+        "url": ""
+      }
+    ]
+  },
+  "weather": {
+    "note": "National Weather Service, public, no key: https://api.weather.gov/points/{lat},{lon} → forecastHourly. Used for a one-line bike/ferry conditions hint.",
+    "lat": 40.744,
+    "lon": -74.0324
   }
 }
